@@ -1,49 +1,50 @@
-
-const TelegramBot = require('node-telegram-bot-api');
+// telegramBot.js
+const express = require('express');
 const axios = require('axios');
+const TelegramBot = require('node-telegram-bot-api');
 
-const BOT_TOKEN = '7593576707: AAFfwzMnHc6eUpyrZVrWhJokJg_NdK4LcQs';
+const app = express();
+app.use(express.json());  // Для парсинга JSON-данных в теле запроса
 
+// Токен твоего Telegram-бота
+const BOT_TOKEN = '7593576707:AAFfwzMnHc6eUpyrZVrWhJokJg_NdK4LcQs';
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-bot.onText(/\/start/, (msg) => {
-    const opts = {
-        reply_markup: {
-            keyboard: [
-                [{ text: '📞 Отправить номер телефона', request_contact: true }]
-            ],
-            resize_keyboard: true,
-            one_time_keyboard: true
-        }
-    };
+// Обрабатываем запросы от Telegram
+app.post('/auth/telegram', async (req, res) => {
+    const { id, first_name, last_name, username, photo_url } = req.body;
 
-    bot.sendMessage(msg.chat.id, 'Пожалуйста, отправьте ваш номер телефона:', opts);
-});
-
-bot.on('contact', async (msg) => {
-    const phoneNumber = msg.contact.phone_number;
-    const userId = msg.contact.user_id;
-    const firstName = msg.contact.first_name;
-
-    console.log(`📱 Получен номер телефона: ${phoneNumber}`);
+    // Выводим полученные данные в консоль
+    console.log(`Received data from Telegram: 
+    ID: ${id}, 
+    First Name: ${first_name}, 
+    Last Name: ${last_name}, 
+    Username: ${username}, 
+    Photo URL: ${photo_url}`);
 
     try {
+        // Отправляем данные на сервер ASP.NET Core
         const response = await axios.post('https://guleb23-webapplication2-c213.twc1.net/auth/phone', {
-            userId,
-            phoneNumber,
-            firstName
+            id,
+            first_name,
+            last_name,
+            username,
+            photo_url
         });
 
+        // Если сервер ASP.NET Core вернул успешный ответ
         if (response.data.success) {
-            bot.sendMessage(msg.chat.id, `✅ Спасибо! Ваш номер телефона сохранён.`);
+            res.json({ success: true, message: 'Data successfully sent to ASP.NET Core server' });
         } else {
-            bot.sendMessage(msg.chat.id, `❌ Ошибка: ${response.data.message}`);
+            res.status(400).json({ success: false, message: 'Failed to send data to ASP.NET Core' });
         }
     } catch (error) {
-        console.error(`❌ Ошибка при отправке номера телефона:`, error);
-        bot.sendMessage(msg.chat.id, `❌ Произошла ошибка на сервере.`);
+        console.error('Error sending data to ASP.NET Core server:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 });
 
-console.log('🚀 Telegram Bot запущен...');
-
+// Запускаем сервер на порту 3000
+app.listen(3000, () => {
+    console.log('Express server started on http://localhost:3000');
+});
